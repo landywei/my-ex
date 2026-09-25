@@ -1,5 +1,7 @@
 # my-ex
 
+**English** | [简体中文](README.zh-CN.md)
+
 Turn your local [Codex](https://openai.com/codex) session history into a searchable memory that a new coding agent can retrieve from — so past work (how a bug was actually fixed, decisions made, project-specific gotchas) isn't lost when you stop using Codex.
 
 Fully local: your session transcripts never leave your machine. This repo only contains the pipeline code; your extracted data and embeddings stay in `data/`, which is gitignored.

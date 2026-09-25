@@ -1,4 +1,4 @@
-# codex-memory
+# my-ex
 
 Turn your local [Codex](https://openai.com/codex) session history into a searchable memory that a new coding agent can retrieve from — so past work (how a bug was actually fixed, decisions made, project-specific gotchas) isn't lost when you stop using Codex.
 
@@ -72,12 +72,18 @@ most MCP clients):
 ```json
 {
   "mcpServers": {
-    "codex-memory": {
-      "command": "/absolute/path/to/codex-memory/.venv/bin/python",
-      "args": ["/absolute/path/to/codex-memory/scripts/mcp_server.py"]
+    "my-ex": {
+      "command": "/absolute/path/to/my-ex/.venv/bin/python",
+      "args": ["/absolute/path/to/my-ex/scripts/mcp_server.py"]
     }
   }
 }
+```
+
+Or, using the Claude Code CLI directly:
+
+```bash
+claude mcp add --scope user my-ex -- /absolute/path/to/my-ex/.venv/bin/python /absolute/path/to/my-ex/scripts/mcp_server.py
 ```
 
 ## Privacy

@@ -18,7 +18,7 @@ import search as search_mod  # noqa: E402
 
 from mcp.server import MCPServer
 
-mcp = MCPServer("codex-memory")
+mcp = MCPServer("my-ex")
 
 
 @mcp.tool()

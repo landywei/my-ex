@@ -33,6 +33,12 @@ _NOISE_RE = re.compile(
 )
 _HEADING_RE = re.compile(r"^#+\s*AGENTS\.md instructions\s*$", re.MULTILINE)
 
+# Newer Codex sessions wrap real tool calls in a generic "custom_tool_call"
+# (name="exec") whose payload is a JS snippet that calls the actual tool,
+# e.g. `tools.exec_command({...})` or `tools.web__run({...})`. Pull the
+# real tool name out of that snippet instead of just logging "exec".
+_INNER_TOOL_RE = re.compile(r"tools\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(")
+
 
 def clean_task_text(text: str) -> str:
     if not text:
@@ -111,9 +117,12 @@ def parse_session(path: Path):
                     text = extract_text(payload.get("content"))
                     if text:
                         assistant_messages.append(text)
-                elif item_type in ("function_call", "tool_call"):
+                elif item_type in ("function_call", "tool_call", "custom_tool_call"):
                     name = payload.get("name", "")
                     args = payload.get("arguments") or payload.get("input") or ""
+                    inner = _INNER_TOOL_RE.findall(str(args))
+                    if inner:
+                        name = inner[0]
                     brief = str(args)[:200]
                     tool_calls.append((name, brief))
                     if name in ("apply_patch", "edit_file", "write_file"):

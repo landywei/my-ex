@@ -17,9 +17,27 @@ MODEL = "bge-m3"
 
 ROOT = Path(__file__).parent.parent
 IN_PATH = ROOT / "data" / "sessions_summarized.jsonl"
+EXTRACTED_PATH = ROOT / "data" / "sessions_extracted.jsonl"
 INDEX_DIR = ROOT / "data" / "index"
 VEC_PATH = INDEX_DIR / "vectors.npy"
 META_PATH = INDEX_DIR / "meta.jsonl"
+
+
+def load_tool_sequences() -> dict:
+    """session_id -> compact tool-call sequence, consecutive repeats
+    collapsed (e.g. many exec_command calls in a row -> one)."""
+    seqs = {}
+    if not EXTRACTED_PATH.exists():
+        return seqs
+    for line in EXTRACTED_PATH.open():
+        rec = json.loads(line)
+        names = rec.get("tool_call_names") or []
+        collapsed = []
+        for n in names:
+            if not collapsed or collapsed[-1] != n:
+                collapsed.append(n)
+        seqs[rec["session_id"]] = " → ".join(collapsed[:40])
+    return seqs
 
 
 def embed(text: str, timeout=60) -> list:
@@ -32,7 +50,7 @@ def embed(text: str, timeout=60) -> list:
     return data["embedding"]
 
 
-def summary_to_text(rec) -> str:
+def summary_to_text(rec, tool_seq: str = "") -> str:
     s = rec.get("summary") or {}
     parts = [
         rec.get("thread_name") or "",
@@ -40,6 +58,7 @@ def summary_to_text(rec) -> str:
         f"做法: {s.get('approach', '')}",
         f"结果: {s.get('outcome', '')}",
         f"坑点: {s.get('gotchas', '')}",
+        f"工具调用顺序: {tool_seq}" if tool_seq else "",
     ]
     return "\n".join(p for p in parts if p)
 
@@ -51,12 +70,14 @@ def main():
 
     INDEX_DIR.mkdir(parents=True, exist_ok=True)
     records = [json.loads(l) for l in IN_PATH.open()]
+    tool_seqs = load_tool_sequences()
     print(f"embedding {len(records)} summaries", file=sys.stderr)
 
     vectors = []
     meta = []
     for i, rec in enumerate(records):
-        text = summary_to_text(rec)
+        tool_seq = tool_seqs.get(rec["session_id"], "")
+        text = summary_to_text(rec, tool_seq)
         if not text.strip():
             continue
         try:
@@ -72,6 +93,7 @@ def main():
             "created_at": rec.get("created_at"),
             "file": rec.get("file"),
             "summary": rec.get("summary"),
+            "tool_sequence": tool_seq,
         })
         if (i + 1) % 25 == 0:
             print(f"  {i+1}/{len(records)}", file=sys.stderr)

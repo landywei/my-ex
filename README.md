@@ -13,15 +13,25 @@ Fully local: your session transcripts never leave your machine. This repo only c
 
 ## Status
 
-Early / personal project. Step 1 (extract) is working. Steps 2-4 are in progress.
+Early / personal project. All four scripts are written; extraction is verified end-to-end on real data. Summarize/index are pending a first full run.
+
+## Prerequisites
+
+- Python 3.9+ with `numpy`
+- [Ollama](https://ollama.com), running locally, with two models pulled:
+  ```bash
+  ollama pull qwen2.5:7b-instruct   # summarization
+  ollama pull bge-m3                # embeddings
+  ```
 
 ## Usage
 
 ```bash
-python3 scripts/extract_sessions.py
+python3 scripts/extract_sessions.py     # ~/.codex -> data/sessions_extracted.jsonl
+python3 scripts/summarize_sessions.py   # -> data/sessions_summarized.jsonl (resumable)
+python3 scripts/build_index.py          # -> data/index/{vectors.npy,meta.jsonl}
+python3 scripts/search.py "your task description here"
 ```
-
-Reads from `~/.codex` and writes `data/sessions_extracted.jsonl`.
 
 ## Privacy
 

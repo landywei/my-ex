@@ -7,12 +7,40 @@ summarization / embedding.
 """
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from collections import defaultdict
 
 CODEX_HOME = Path.home() / ".codex"
 OUT_PATH = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent.parent / "data" / "sessions_extracted.jsonl"
+
+# Codex injects boilerplate wrapper blocks into the first user message
+# (environment context, AGENTS.md instructions, plugin suggestions, ...).
+# Strip these so downstream summarization/search sees the actual request.
+NOISE_TAGS = [
+    "environment_context",
+    "recommended_plugins",
+    "INSTRUCTIONS",
+    "in-app-browser-context",
+    "response-annotations",
+    "turn_aborted",
+    "subagents",
+]
+_NOISE_RE = re.compile(
+    r"<(" + "|".join(re.escape(t) for t in NOISE_TAGS) + r")\b[^>]*>.*?</\1>",
+    re.DOTALL,
+)
+_HEADING_RE = re.compile(r"^#+\s*AGENTS\.md instructions\s*$", re.MULTILINE)
+
+
+def clean_task_text(text: str) -> str:
+    if not text:
+        return text
+    text = _NOISE_RE.sub("", text)
+    text = _HEADING_RE.sub("", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text
 
 def find_rollout_files():
     seen = {}
@@ -94,6 +122,16 @@ def parse_session(path: Path):
                             if "/" in token and len(token) < 200:
                                 files_touched.add(token.strip("\"',:"))
 
+    # The first user message is often a pure boilerplate turn (environment
+    # context, AGENTS.md instructions) injected before the user's actual
+    # request. Use the first message that has real content after cleaning.
+    cleaned_first_msg = ""
+    for um in user_messages:
+        cleaned = clean_task_text(um)
+        if len(cleaned) > 5:
+            cleaned_first_msg = cleaned
+            break
+
     return {
         "session_id": session_id,
         "file": str(path),
@@ -104,7 +142,7 @@ def parse_session(path: Path):
         "n_user_msgs": len(user_messages),
         "n_assistant_msgs": len(assistant_messages),
         "n_tool_calls": len(tool_calls),
-        "first_user_message": user_messages[0][:4000] if user_messages else "",
+        "first_user_message": cleaned_first_msg[:4000],
         "last_assistant_message": assistant_messages[-1][:4000] if assistant_messages else "",
         "tool_call_names": [t[0] for t in tool_calls],
         "files_touched_sample": list(files_touched)[:20],
@@ -133,7 +171,10 @@ def main():
         for i, path in enumerate(files):
             try:
                 rec = parse_session(path)
-                rec["thread_name"] = thread_names.get(rec["session_id"], "")
+                name = thread_names.get(rec["session_id"], "")
+                if not name and rec["first_user_message"]:
+                    name = rec["first_user_message"].splitlines()[0][:60]
+                rec["thread_name"] = name
                 out.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 n_ok += 1
             except Exception as e:

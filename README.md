@@ -9,28 +9,57 @@ Fully local: your session transcripts never leave your machine. This repo only c
 1. **Extract** — parse Codex's local rollout files (`~/.codex/{sessions,archived_sessions}/**/*.jsonl`) into structured per-session records (task, outcome, tool calls, project path).
 2. **Summarize** — compress each session into a short, retrieval-friendly note (task / approach / outcome / gotchas) using a local model.
 3. **Index** — embed the summaries with a local embedding model and store them in a local vector index.
-4. **Retrieve** — given a new task, query the index for relevant past sessions and inject them as context for your agent/harness of choice.
+4. **Retrieve** — via `scripts/search.py` (CLI) or `scripts/mcp_server.py` (MCP server), so any MCP-compatible coding agent (Codex CLI, OpenCode, Goose, Claude Code, ...) can pull relevant past sessions into context for a new task.
 
 ## Status
 
-Early / personal project. All four scripts are written; extraction is verified end-to-end on real data. Summarize/index are pending a first full run.
+Early / personal project. All scripts are written; extraction is verified end-to-end on real data. Summarize/index are pending a first full run.
 
 ## Prerequisites
 
-- Python 3.9+ with `numpy`
+- Python 3.10+ (the MCP SDK needs it; a venv is recommended — see below)
 - [Ollama](https://ollama.com), running locally, with two models pulled:
   ```bash
   ollama pull qwen2.5:7b-instruct   # summarization
   ollama pull bge-m3                # embeddings
   ```
 
+## Setup
+
+```bash
+python3.1x -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+```
+
 ## Usage
 
 ```bash
-python3 scripts/extract_sessions.py     # ~/.codex -> data/sessions_extracted.jsonl
-python3 scripts/summarize_sessions.py   # -> data/sessions_summarized.jsonl (resumable)
-python3 scripts/build_index.py          # -> data/index/{vectors.npy,meta.jsonl}
-python3 scripts/search.py "your task description here"
+./.venv/bin/python scripts/extract_sessions.py     # ~/.codex -> data/sessions_extracted.jsonl
+./.venv/bin/python scripts/summarize_sessions.py   # -> data/sessions_summarized.jsonl (resumable)
+./.venv/bin/python scripts/build_index.py          # -> data/index/{vectors.npy,meta.jsonl}
+./.venv/bin/python scripts/search.py "your task description here"
+```
+
+### As an MCP server
+
+```bash
+./.venv/bin/python scripts/mcp_server.py
+```
+
+Exposes one tool, `search_codex_memory(query, top_k)`. Point any MCP-compatible
+harness at this command (stdio transport) to give it retrieval access to your
+Codex history. Example (Claude Code `.mcp.json` / similar config shape used by
+most MCP clients):
+
+```json
+{
+  "mcpServers": {
+    "codex-memory": {
+      "command": "/absolute/path/to/codex-memory/.venv/bin/python",
+      "args": ["/absolute/path/to/codex-memory/scripts/mcp_server.py"]
+    }
+  }
+}
 ```
 
 ## Privacy

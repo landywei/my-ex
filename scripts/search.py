@@ -36,16 +36,12 @@ def cosine_sim(query_vec, mat):
     return m @ q
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("usage: search.py <query text> [top_k]", file=sys.stderr)
-        sys.exit(1)
-    query = sys.argv[1]
-    top_k = int(sys.argv[2]) if len(sys.argv) > 2 else 5
-
+def search(query: str, top_k: int = 5) -> list:
+    """Return the top_k most relevant past sessions for `query`, each as a
+    dict with score, thread_name, cwd, summary (task/approach/outcome/
+    gotchas) and the original rollout file path."""
     if not VEC_PATH.exists():
-        print(f"missing {VEC_PATH}, run build_index.py first", file=sys.stderr)
-        sys.exit(1)
+        raise FileNotFoundError(f"missing {VEC_PATH}, run build_index.py first")
 
     mat = np.load(VEC_PATH)
     meta = [json.loads(l) for l in META_PATH.open()]
@@ -54,16 +50,40 @@ def main():
     sims = cosine_sim(qvec, mat)
     order = np.argsort(-sims)[:top_k]
 
-    for rank, idx in enumerate(order, 1):
-        m = meta[idx]
+    results = []
+    for idx in order:
+        m = dict(meta[idx])
+        m["score"] = float(sims[idx])
+        results.append(m)
+    return results
+
+
+def _print_results(results):
+    for rank, m in enumerate(results, 1):
         s = m.get("summary") or {}
-        print(f"\n#{rank}  score={sims[idx]:.3f}  {m.get('thread_name') or '(无标题)'}")
+        print(f"\n#{rank}  score={m['score']:.3f}  {m.get('thread_name') or '(无标题)'}")
         print(f"    project: {m.get('cwd')}")
         print(f"    task:    {s.get('task', '')}")
         print(f"    outcome: {s.get('outcome', '')}")
         if s.get("gotchas") and s.get("gotchas") != "无":
             print(f"    gotchas: {s.get('gotchas')}")
         print(f"    file:    {m.get('file')}")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("usage: search.py <query text> [top_k]", file=sys.stderr)
+        sys.exit(1)
+    query = sys.argv[1]
+    top_k = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+
+    try:
+        results = search(query, top_k)
+    except FileNotFoundError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+
+    _print_results(results)
 
 
 if __name__ == "__main__":

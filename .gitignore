@@ -1,0 +1,9 @@
+data/
+*.jsonl
+*.sqlite
+*.sqlite-*
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
